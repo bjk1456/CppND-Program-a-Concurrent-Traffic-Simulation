@@ -1,0 +1,178 @@
+The Rule of Five¶
+By adding both the move constructor and the move assignment operator to our MyMovableClass, we have adhered to the Rule of Five. This rule is an extension of the Rule of Three which we have already seen and exists since the introduction of the C++11 standard. The Rule of Five is especially important in resource management, where unnecessary copying needs to be avoided due to limited resources and performance reasons. Also, all the STL container classes such as std::vector implement the Rule of Five and use move semantics for increased efficiency.
+
+The Rule of Five states that if you have to write one of the functions listed below then you should consider implementing all of them with a proper resource management policy in place. If you forget to implement one or more, the compiler will usually generate the missing ones (without a warning) but the default versions might not be suitable for the purpose you have in mind. The five functions are:
+
+The destructor: Responsible for freeing the resource once the object it belongs to goes out of scope.
+
+The assignment operator: The default assignment operation performs a member-wise shallow copy, which does not copy the content behind the resource handle. If a deep copy is needed, it has be implemented by the programmer.
+
+The copy constructor: As with the assignment operator, the default copy constructor performs a shallow copy of the data members. If something else is needed, the programmer has to implement it accordingly.
+
+The move constructor: Because copying objects can be an expensive operation which involves creating, copying and destroying temporary objects, rvalue references are used to bind to an rvalue. Using this mechanism, the move constructor transfers the ownership of a resource from a (temporary) rvalue object to a permanent lvalue object.
+
+The move assignment operator: With this operator, ownership of a resource can be transferred from one object to another. The internal behavior is very similar to the move constructor.
+
+
+
+
+
+
+
+
+
+#include <stdlib.h>
+#include <iostream>
+
+class MyMovableClass
+{
+private:
+    int _size;
+    int *_data;
+
+public:
+    MyMovableClass(size_t size) // constructor
+    {
+        _size = size;
+        _data = new int[_size];
+        std::cout << "CREATING instance of MyMovableClass at " << this << " allocated with size = " << _size*sizeof(int)  << " bytes" << std::endl;
+    }
+
+    ~MyMovableClass() // 1 : destructor
+    {
+        std::cout << "DELETING instance of MyMovableClass at " << this << std::endl;
+        delete[] _data;
+    }
+    
+    MyMovableClass(const MyMovableClass &source) // 2 : copy constructor
+    {
+        _size = source._size;
+        _data = new int[_size];
+        *_data = *source._data;
+        std::cout << "COPYING content of instance " << &source << " to instance " << this << std::endl;
+    }
+    
+    MyMovableClass &operator=(const MyMovableClass &source) // 3 : copy assignment operator
+    {
+        std::cout << "ASSIGNING content of instance " << &source << " to instance " << this << std::endl;
+        if (this == &source)
+            return *this;
+        delete[] _data;
+        _data = new int[source._size];
+        *_data = *source._data;
+        _size = source._size;
+        return *this;
+    }
+};
+
+int main()
+{
+    MyMovableClass obj1(10); // regular constructor
+    MyMovableClass obj2(obj1); // copy constructor
+    obj2 = obj1; // copy assignment operator
+
+    return 0;
+}
+
+
+
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+int main()
+{
+    MyMovableClass obj1(100), obj2(200); // constructor
+
+    MyMovableClass obj3(obj1); // copy constructor
+
+    MyMovableClass obj4 = obj1; // copy constructor
+
+    obj4 = obj2; // copy assignment operator
+
+    return 0;
+}
+
+
+If you compile and run this code, be sure to use the -std=c++11 flag. The reasons for this will be explained below.
+
+In the code above, in total, four instances of MyMovableClass are constructed here. While obj1 and obj2 are created using the conventional constructor, obj3 is created using the copy constructor instead according to our implementation. Interestingly, even though the creation of obj4 looks like an assignment, the compiler calls the copy constructor int this case. Finally, the last line calls the copy assignment operator. The output of the above main function looks like the following:
+
+
+CREATING instance of MyMovableClass at 0x7ffeefbff718 allocated with size = 400 bytes
+
+CREATING instance of MyMovableClass at 0x7ffeefbff708 allocated with size = 800 bytes
+
+COPYING content of instance 0x7ffeefbff718 to instance 0x7ffeefbff6e8
+
+COPYING content of instance 0x7ffeefbff718 to instance 0x7ffeefbff6d8
+
+ASSIGNING content of instance 0x7ffeefbff708 to instance 0x7ffeefbff6d8
+
+DELETING instance of MyMovableClass at 0x7ffeefbff6d8
+DELETING instance of MyMovableClass at 0x7ffeefbff6e8
+DELETING instance of MyMovableClass at 0x7ffeefbff708
+DELETING instance of MyMovableClass at 0x7ffeefbff718
+Note that the compiler has been called with the option -fno-elide-constructors to turn off an optimization techniques called copy elision, which would make it harder to understand the various calls and the operations they entail. This technique is guaranteed to be used as of C++17, which is why we are also reverting to the C++11 standard for the remainder of this chapter using -std=c++11. Until now, no move operation has been performed yet as all of the above calls were involving lvalues.
+
+
+
+
+
+
+
+
+
+
+
+#include <stdlib.h>
+#include <iostream>
+
+class MyMovableClass
+{
+private:
+    int _size;
+    int *_data;
+
+public:
+    MyMovableClass(size_t size) // constructor
+    {
+        _size = size;
+        _data = new int[_size];
+        std::cout << "CREATING instance of MyMovableClass at " << this << " allocated with size = " << _size*sizeof(int)  << " bytes" << std::endl;
+    }
+
+    ~MyMovableClass() // 1 : destructor
+    {
+        std::cout << "DELETING instance of MyMovableClass at " << this << std::endl;
+        delete[] _data;
+    }
+    
+    MyMovableClass(const MyMovableClass &source) // 2 : copy constructor
+    {
+        _size = source._size;
+        _data = new int[_size];
+        *_data = *source._data;
+        std::cout << "COPYING content of instance " << &source << " to instance " << this << std::endl;
+    }
+    
+    MyMovableClass &operator=(const MyMovableClass &source) // 3 : copy assignment operator
+    {
+        std::cout << "ASSIGNING content of instance " << &source << " to instance " << this << std::endl;
+        if (this == &source)
+            return *this;
+        delete[] _data;
+        _data = new int[source._size];
+        *_data = *source._data;
+        _size = source._size;
+        return *this;
+    }
+};
+
+int main()
+{
+    MyMovableClass obj1(10); // regular constructor
+    MyMovableClass obj2(obj1); // copy constructor
+    obj2 = obj1; // copy assignment operator
+
+    return 0;
+}
